@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateTaskRequest;
 use Illuminate\Support\Facades\Validator;
 use App\Http\Requests\UpdateStatusRequest;
 use App\Http\Traits\HandelResponseApiTrait;
+use App\Http\Requests\UpdateAssignedToRequest;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class TaskController extends Controller
@@ -42,7 +43,7 @@ class TaskController extends Controller
     public function showMyTasks(Request $request)
     {
         $tasks = Task::with('subTasks')
-                    ->where('assigned_to', auth()->user()->id)
+                    ->where('assigned_to', auth()->id())
                     ->filterTasks($request)
                     ->get();
 
@@ -77,7 +78,18 @@ class TaskController extends Controller
             if (!$task) {
                 return $this->responseFailed('Task not found', 404);
             }
-            $task->update($request->all());
+            $data = $request->all();
+            if(empty($data))
+            {
+                return $this->responseFailed('No data to update', 400);
+            }
+            $task->update([
+                'title' => $request->title ?? $task->title,
+                'description' => $request->description ?? $task->description,
+                'due_date' => $request->due_date ?? $task->due_date,
+                'status' => $request->status ?? $task->status,
+                'assigned_to' => $request->assigned_to ?? $task->assigned_to,
+            ]);
                 return $this->responseSuccess($task, 'Task updated successfully');
 
         } catch (\Exception $e) {
@@ -114,6 +126,24 @@ class TaskController extends Controller
             return $this->responseFailed($e->getMessage(), 500);
         }
 
+    }
+
+    public function updateAssignedTo(UpdateAssignedToRequest $request, string $taskId)
+    {
+        try {
+                $task = Task::find($taskId);
+                if (!$task) {
+                    return $this->responseFailed('Task not found', 404);
+                }
+
+                $this->authorize('createOrUpdate', $task);
+
+                $task->update(['assigned_to' => $request->assigned_to]);
+                 return $this->responseSuccess($task, 'Task assigned to new user successfully');
+
+        } catch (\Exception $e) {
+            return $this->responseFailed($e->getMessage(), 500);
+        }
     }
 
     public function delete(string $id)
