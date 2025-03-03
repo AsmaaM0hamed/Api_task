@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\CreateTaskRequest;
 use App\Models\Task;
 use Illuminate\Http\Request;
+use App\Http\Requests\CreateTaskRequest;
+use App\Http\Requests\UpdateTaskRequest;
 use Illuminate\Support\Facades\Validator;
+use App\Http\Requests\UpdateStatusRequest;
 use App\Http\Traits\HandelResponseApiTrait;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
@@ -14,60 +16,117 @@ class TaskController extends Controller
     use AuthorizesRequests;
 
     use HandelResponseApiTrait;
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(Request $request)
-    {
-        $query = Task::query();
 
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->has('due_date')) {
-            $query->whereBetween('due_date', explode(',', $request->due_date));
-        }
-        if ($request->has('assigned_to')) {
-            $query->where('assigned_to', $request->assigned_to);
-        }
-        $tasks = $query->get();
+    public function listTasks(Request $request)
+    {
+
+        $this->authorize('viewTasks', Task::class);
+
+        $tasks = Task::with('subTasks')
+                    ->filterTasks($request)
+                    ->get();
 
         return $this->responseSuccess($tasks, 'Tasks fetched successfully');
     }
 
+    public function showOneTask(string $id)
+    {
+        $task = Task::find($id);
+        if (!$task) {
+            return $this->responseFailed('Task not found', 404);
+        }
+        $task->subtasks;
+        return $this->responseSuccess($task, 'Task fetched successfully');
+    }
+
+    public function showMyTasks(Request $request)
+    {
+        $tasks = Task::with('subTasks')
+                    ->where('assigned_to', auth()->user()->id)
+                    ->filterTasks($request)
+                    ->get();
+
+        return $this->responseSuccess($tasks, 'Tasks fetched successfully');
+    }
 
     public function create(CreateTaskRequest $request)
     {
-        $this->authorize('create', Task::class);
-        $data = $request->all();
-        $data['status'] = 'pending';
-        $data['created_by'] = $request->user()->id;
-        
-        $task = Task::create($data);
-        return $this->responseSuccess($task, 'Task created successfully');
+        try {
+
+            $this->authorize('createOrUpdate', Task::class);
+
+            $data = $request->all();
+            $data['created_by'] = $request->user()->id;
+
+            $task = Task::create($data);
+            return $this->responseSuccess($task, 'Task created successfully');
+
+        } catch (\Exception $e) {
+            return $this->responseFailed($e->getMessage(), 500);
+        }
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function update(UpdateTaskRequest $request, string $id)
     {
-        //
+        try {
+
+            $this->authorize('createOrUpdate', Task::class);
+
+            $task = Task::find($id);
+
+            if (!$task) {
+                return $this->responseFailed('Task not found', 404);
+            }
+            $task->update($request->all());
+                return $this->responseSuccess($task, 'Task updated successfully');
+
+        } catch (\Exception $e) {
+            return $this->responseFailed($e->getMessage(), 500);
+        }
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    public function updateStatus(UpdateStatusRequest $request, string $id)
     {
-        //
+        try {
+
+                $task = Task::find($id);
+
+                if (!$task) {
+                    return $this->responseFailed('Task not found', 404);
+                }
+
+                $this->authorize('updateStatus', $task);
+
+                if ($task->status === 'completed' && $request->status === 'canceled') {
+                    return $this->responseFailed('Task is completed and cannot be canceled', 400);
+                }
+                if ($request->status === 'completed') {
+                    $subtask=$task->subtasks->where('status','pending');
+                        if ($subtask->count() > 0) {
+                            return $this->responseFailed('subtasks are not completed please complete them first', 400);
+                        }
+                }
+
+                $task->update(['status' => $request->status]);
+                return $this->responseSuccess($task, 'Task status updated successfully');
+
+        } catch (\Exception $e) {
+            return $this->responseFailed($e->getMessage(), 500);
+        }
+
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
+    public function delete(string $id)
     {
-        //
+
+        $task = Task::find($id);
+
+        if (!$task) {
+            return $this->responseFailed('Task not found', 404);
+        }
+        $this->authorize('delete', $task);
+
+        $task->delete();
+        return $this->responseSuccess(null, 'Task deleted successfully');
     }
 }

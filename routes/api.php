@@ -4,41 +4,32 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\AuthController;
 use Illuminate\Support\Facades\Route;
 
-
-
-
+//auth routes
 
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
 
 
+//tasks routes
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('tasks')->group(function () {
 
-        Route::get('/', [TaskController::class, 'index']);
+        Route::get('/', [TaskController::class, 'listTasks']);
 
+        Route::get('/showOneTask/{id}', [TaskController::class, 'showOneTask']);
+
+        Route::get('/showMyTasks', [TaskController::class, 'showMyTasks']);
 
         Route::post('/create', [TaskController::class, 'create']);
 
-        // عرض مهمة محددة
-        // Route::get('/{task}', [TaskController::class, 'show']);
+        Route::post('/update/{id}', [TaskController::class, 'update']);
 
-        // تحديث مهمة
-        // Route::put('/{task}', [TaskController::class, 'update']);
+        Route::post('/updateStatus/{id}', [TaskController::class, 'updateStatus']);
 
-        // حذف مهمة
-        // Route::delete('/{task}', [TaskController::class, 'destroy']);
+        Route::post('/updateAssignedTo/{id}', [TaskController::class, 'updateAssignedTo']);
 
-        // مسارات إضافية
-        // تغيير حالة المهمة
-        // Route::patch('/{task}/status', [TaskController::class, 'updateStatus']);
-
-        // إسناد المهمة لمستخدم
-        // Route::patch('/{task}/assign', [TaskController::class, 'assignTask']);
-
-        // عرض المهام الفرعية
-        // Route::get('/{task}/subtasks', [TaskController::class, 'subtasks']);
+        Route::delete('/delete/{id}', [TaskController::class, 'delete']);
     });
 });

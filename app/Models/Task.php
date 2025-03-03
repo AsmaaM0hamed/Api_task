@@ -39,4 +39,23 @@ class Task extends Model
     {
         return $this->hasMany(Task::class, 'parent_id');
     }
+
+    public function scopeFilterTasks($query, $request)
+    {
+        return $query->when($request->has('status'), function ($q) use ($request) {
+                return $q->where('status', $request->status);
+            })
+            ->when($request->has('date_from') && $request->has('date_to'), function ($q) use ($request) {
+                return $q->whereBetween('due_date', [$request->date_from, $request->date_to]);
+            })
+            ->when($request->has('date_from') && !$request->has('date_to'), function ($q) use ($request) {
+                return $q->where('due_date', '>=', $request->date_from);
+            })
+            ->when(!$request->has('date_from') && $request->has('date_to'), function ($q) use ($request) {
+                return $q->where('due_date', '<=', $request->date_to);
+            })
+            ->when($request->has('assigned_to'), function ($q) use ($request) {
+                return $q->where('assigned_to', $request->assigned_to);
+            });
+    }
 }
